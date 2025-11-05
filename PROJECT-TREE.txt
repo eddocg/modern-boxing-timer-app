@@ -1,0 +1,89 @@
+BOXING TIMER - Phase 0 Project Structure
+
+modern-boxing-timer-app/
+├── .github/
+│   └── workflows/
+│       └── ci.yml                      ✅ GitHub Actions CI config (reference)
+│
+├── assets/
+│   └── fonts/
+│       └── SpaceMono-Regular.ttf      ✅ Font placeholder (replace in Phase 1)
+│
+├── docs/
+│   ├── README.md                       ✅ Quick start & features
+│   ├── ARCHITECTURE.md                 ✅ Design & timing model
+│   ├── DECISIONS.md                    ✅ Architecture decision records
+│   ├── ROADMAP.md                      ✅ Development phases
+│   ├── TESTING.md                      ✅ Testing strategy
+│   ├── ACCESSIBILITY.md                ✅ WCAG AA targets
+│   ├── SOUND-LICENSING.md              ✅ Audio sources (to complete in Phase 1)
+│   ├── PRIVACY.md                      ✅ Privacy policy
+│   ├── OPERATIONS.md                   ✅ Build & deployment
+│   ├── CONTRIBUTING.md                 ✅ Development workflow
+│   └── RELEASES.md                     ✅ Versioning & releases
+│
+├── e2e/
+│   └── smoke.spec.ts                   ✅ Playwright smoke tests (placeholder)
+│
+├── src/
+│   ├── app/
+│   │   ├── _layout.tsx                ✅ Root layout + routing
+│   │   ├── index.tsx                  ✅ TimerScreen (placeholder)
+│   │   └── settings.tsx               ✅ SettingsScreen (placeholder)
+│   │
+│   ├── components/
+│   │   ├── LightBeacon.tsx            ✅ Red/yellow/green light component
+│   │   ├── ProgressRing.tsx           ✅ Circular progress arc (basic)
+│   │   └── PrimaryButton.tsx          ✅ Play/Pause/Resume button
+│   │
+│   ├── state/
+│   │   ├── timerMachine.ts            ✅ Timer FSM (Zustand, scaffold)
+│   │   └── useSettings.ts             ✅ Settings store (Zustand, scaffold)
+│   │
+│   ├── audio/
+│   │   ├── index.ts                   ✅ Audio manager (preload, cues)
+│   │   └── assets/                    📁 (empty, audio files added in Phase 1)
+│   │
+│   ├── utils/
+│   │   └── time.ts                    ✅ Time utils, MonotonicTimer, scheduler
+│   │
+│   ├── theme/
+│   │   └── tokens.ts                  ✅ Design tokens (WCAG AA colors)
+│   │
+│   └── types/
+│       └── index.ts                   ✅ TypeScript type definitions
+│
+├── tests/
+│   ├── state/
+│   │   └── timerMachine.test.ts       ✅ FSM unit tests (scaffold)
+│   │
+│   └── utils/
+│       └── time.test.ts               ✅ Time utility tests (scaffold)
+│
+├── .eslintrc.js                        ✅ ESLint config
+├── .gitignore                          ✅ Git ignore rules
+├── .prettierignore                     ✅ Prettier ignore rules
+├── .prettierrc                         ✅ Prettier config
+├── app.json                            ✅ Expo app config
+├── babel.config.js                     ✅ Babel + NativeWind
+├── CLAUDE.md                           ✅ Claude Code guidance
+├── package.json                        ✅ Dependencies & scripts
+├── playwright.config.ts                ✅ Playwright config
+├── README.md                           ✅ Repo root readme
+├── PHASE-0-SUMMARY.md                  ✅ Phase 0 completion report
+├── tailwind.config.js                  ✅ Tailwind config
+├── tsconfig.json                       ✅ TypeScript strict config
+└── vitest.config.ts                    ✅ Vitest config
+
+SUMMARY:
+========
+✅ = Completed (Phase 0)
+📁 = Empty directory (to fill in Phase 1)
+❌ = Not yet implemented (Phase 1+)
+
+Total Files: 50+
+Total Lines: ~5,500 (code + docs + config)
+
+READY FOR: npm install && npm run lint && npm run type-check
+
+NEXT: Phase 1 - Core MVP (5-7 days)

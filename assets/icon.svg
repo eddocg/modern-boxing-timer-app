@@ -1,0 +1,30 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .bg { fill: #0B0B0C; }
+      .green { fill: #00D26A; }
+      .yellow { fill: #FFD84D; }
+      .red { fill: #FF4D4F; }
+      .text { fill: #FFFFFF; font-family: Arial, sans-serif; font-size: 80px; font-weight: bold; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect class="bg" width="1024" height="1024"/>
+
+  <!-- Title -->
+  <text class="text" x="512" y="150" text-anchor="middle">BOXING</text>
+  <text class="text" x="512" y="250" text-anchor="middle">TIMER</text>
+
+  <!-- Three lights -->
+  <circle class="green" cx="250" cy="450" r="80"/>
+  <circle class="yellow" cx="512" cy="450" r="80"/>
+  <circle class="red" cx="774" cy="450" r="80"/>
+
+  <!-- Progress ring representation -->
+  <circle cx="512" cy="720" r="120" fill="none" stroke="#333333" stroke-width="8"/>
+  <circle cx="512" cy="720" r="120" fill="none" stroke="#00D26A" stroke-width="8" stroke-dasharray="377 377" stroke-dashoffset="94" stroke-linecap="round"/>
+
+  <!-- Center text -->
+  <text class="text" x="512" y="740" text-anchor="middle" font-size="60">3:00</text>
+</svg>
