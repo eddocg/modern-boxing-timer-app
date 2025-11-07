@@ -73,7 +73,7 @@ export function ProgressRing({ elapsed, total, displayTime }: ProgressRingProps)
         {/* Inner content */}
         <View style={styles.content}>
           {/* Time display */}
-          <Text style={styles.timeText}>{displayTime}</Text>
+          <Text style={styles.timeText} testID="timer-display">{displayTime}</Text>
 
           {/* Progress indicator */}
           <Text style={styles.progressText}>{progress === 1 ? 'Complete' : `${Math.round(progress * 100)}%`}</Text>

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { getFromStorage, saveToStorage } from '@utils/storage';
 
 interface Settings {
   rounds: number | null; // null means infinite
@@ -24,6 +25,15 @@ const DEFAULT_SETTINGS: Settings = {
   countdownEnabled: false,
 };
 
+// Storage schema version for migration
+const STORAGE_KEY = 'boxing-timer-settings';
+const STORAGE_VERSION = 1;
+
+interface StoredSettings {
+  version: number;
+  settings: Settings;
+}
+
 interface SettingsStore extends Settings {
   updateSetting: <K extends keyof Settings>(key: K, value: Settings[K]) => void;
   resetToDefaults: () => void;
@@ -31,25 +41,76 @@ interface SettingsStore extends Settings {
   saveToStorage: () => Promise<void>;
 }
 
-export const useSettingsStore = create<SettingsStore>((set) => ({
+export const useSettingsStore = create<SettingsStore>((set, get) => ({
   ...DEFAULT_SETTINGS,
 
-  updateSetting: (key, value) =>
+  updateSetting: (key, value) => {
     set((state) => ({
       ...state,
       [key]: value,
-    })),
+    }));
+    // Auto-save on update
+    get().saveToStorage();
+  },
 
-  resetToDefaults: () => set(DEFAULT_SETTINGS),
+  resetToDefaults: () => {
+    set(DEFAULT_SETTINGS);
+    get().saveToStorage();
+  },
 
   loadFromStorage: async () => {
-    // Will be implemented in Phase 1 with AsyncStorage
-    console.log('Loading settings from storage');
+    try {
+      const stored = await getFromStorage<StoredSettings>(STORAGE_KEY);
+      if (!stored) {
+        // No stored settings, use defaults
+        return;
+      }
+
+      // Migration: handle schema version changes
+      if (stored.version !== STORAGE_VERSION) {
+        // For now, just reset to defaults if version mismatch
+        // In future, add migration logic here
+        console.warn(`Settings version mismatch (${stored.version} vs ${STORAGE_VERSION}), using defaults`);
+        return;
+      }
+
+      // Merge stored settings with defaults to handle new fields
+      const mergedSettings: Settings = {
+        ...DEFAULT_SETTINGS,
+        ...stored.settings,
+      };
+
+      set(mergedSettings);
+    } catch (error) {
+      console.error('Failed to load settings from storage:', error);
+      // Use defaults on error
+    }
   },
 
   saveToStorage: async () => {
-    // Will be implemented in Phase 1 with AsyncStorage
-    console.log('Saving settings to storage');
+    try {
+      const state = get();
+      const settingsToSave: Settings = {
+        rounds: state.rounds,
+        workDuration: state.workDuration,
+        restDuration: state.restDuration,
+        yellowThreshold: state.yellowThreshold,
+        warmup: state.warmup,
+        soundPack: state.soundPack,
+        volume: state.volume,
+        vibrationEnabled: state.vibrationEnabled,
+        countdownEnabled: state.countdownEnabled,
+      };
+
+      const stored: StoredSettings = {
+        version: STORAGE_VERSION,
+        settings: settingsToSave,
+      };
+
+      await saveToStorage(STORAGE_KEY, stored);
+    } catch (error) {
+      console.error('Failed to save settings to storage:', error);
+    }
   },
 }));
 

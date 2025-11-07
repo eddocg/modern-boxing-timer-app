@@ -8,6 +8,8 @@
     "resolveJsonModule": true,
     "allowJs": true,
     "jsx": "react-jsx",
+    "module": "esnext",
+    "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
       "@/*": [
@@ -40,6 +42,8 @@
     "expo-env.d.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "e2e",
+    "**/*.spec.ts"
   ]
 }

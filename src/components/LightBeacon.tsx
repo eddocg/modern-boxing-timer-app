@@ -34,6 +34,7 @@ export function LightBeacon({ color, isOn }: LightBeaconProps) {
 
   return (
     <View
+      testID={`light-${color}`}
       style={[
         styles.container,
         {

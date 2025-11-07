@@ -1,6 +1,7 @@
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useRef } from 'react';
 
 import { ProgressRing } from '@components/ProgressRing';
 import { LightBeacon } from '@components/LightBeacon';
@@ -8,6 +9,7 @@ import { PrimaryButton } from '@components/PrimaryButton';
 
 import { useTimerStatus, useTimerActions } from '@state/timerMachine';
 import { useSettingsStore } from '@state/useSettings';
+import { getAudioManager } from '@audio/index';
 
 /**
  * TimerScreen - Main boxing timer interface
@@ -24,13 +26,48 @@ export default function TimerScreen() {
 
   // Timer state and actions
   const timerStatus = useTimerStatus();
-  const { start, pause, resume, reset } = useTimerActions();
+  const { start, pause, resume, reset, setConfig, skip, onAudioCueSubscribe } = useTimerActions();
 
   // Settings
   const rounds = useSettingsStore((state) => state.rounds);
   const workDuration = useSettingsStore((state) => state.workDuration);
   const restDuration = useSettingsStore((state) => state.restDuration);
   const yellowThreshold = useSettingsStore((state) => state.yellowThreshold);
+  const warmup = useSettingsStore((state) => state.warmup);
+  const countdownEnabled = useSettingsStore((state) => state.countdownEnabled);
+  const volume = useSettingsStore((state) => state.volume);
+
+  // Audio manager reference
+  const audioManagerRef = useRef(getAudioManager());
+
+  // Subscribe to audio cues from timer
+  useEffect(() => {
+    const audioManager = audioManagerRef.current;
+    
+    // Update volume when settings change
+    audioManager.setVolume(volume).catch((error: unknown) => {
+      console.error('Failed to set audio volume:', error);
+    });
+
+    // Subscribe to timer audio cues
+    onAudioCueSubscribe(async (cue) => {
+      if (audioManager.isReady()) {
+        await audioManager.playCue(cue);
+      }
+    });
+  }, [volume, onAudioCueSubscribe]);
+
+  // Sync settings to timer config whenever settings change
+  useEffect(() => {
+    setConfig({
+      workDuration,
+      restDuration,
+      yellowThreshold,
+      warmupDuration: warmup, // Map warmup -> warmupDuration
+      totalRounds: rounds,
+      countdownEnabled,
+    });
+  }, [workDuration, restDuration, yellowThreshold, warmup, rounds, countdownEnabled, setConfig]);
 
   // Handle Play/Pause/Resume button
   const handlePlayPause = () => {
@@ -42,6 +79,48 @@ export default function TimerScreen() {
       resume();
     }
   };
+
+  // Keyboard controls (web only)
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      // Ignore if user is typing in an input field
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        (event.target as HTMLElement).isContentEditable
+      ) {
+        return;
+      }
+
+      switch (event.key.toLowerCase()) {
+        case ' ': // Space bar
+          event.preventDefault();
+          handlePlayPause();
+          break;
+        case 'r':
+          event.preventDefault();
+          if (timerStatus.state !== 'idle') {
+            reset();
+          }
+          break;
+        case 'n':
+          event.preventDefault();
+          if (timerStatus.state !== 'idle' && timerStatus.state !== 'complete') {
+            skip();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [timerStatus.state, handlePlayPause, reset, skip]);
 
   // Determine button label based on state
   const getButtonLabel = (): string => {
@@ -76,6 +155,7 @@ export default function TimerScreen() {
           accessible
           accessibilityRole="button"
           accessibilityLabel="Open settings"
+          testID="settings-button"
         >
           <Ionicons name="settings-sharp" size={28} color="#FFFFFF" />
         </Pressable>
@@ -96,19 +176,35 @@ export default function TimerScreen() {
       />
 
       {/* Round info */}
-      <Text style={styles.roundInfo}>{timerStatus.roundInfo}</Text>
+      <Text style={styles.roundInfo} testID="round-info">{timerStatus.roundInfo}</Text>
       <Text style={styles.stateLabel}>{timerStatus.state.toUpperCase()}</Text>
 
       {/* Control buttons */}
       <View style={styles.buttonsContainer}>
-        <PrimaryButton label={getButtonLabel()} onPress={handlePlayPause} variant="primary" />
-
-        <PrimaryButton
-          label="RESET"
-          onPress={reset}
-          disabled={timerStatus.state === 'idle'}
-          variant="secondary"
+        <PrimaryButton 
+          label={getButtonLabel()} 
+          onPress={handlePlayPause} 
+          variant="primary"
+          testID="play-pause-button"
         />
+
+        <View style={styles.secondaryButtonsRow}>
+          <PrimaryButton
+            label="SKIP"
+            onPress={skip}
+            disabled={timerStatus.state === 'idle' || timerStatus.state === 'complete'}
+            variant="secondary"
+            testID="skip-button"
+          />
+
+          <PrimaryButton
+            label="RESET"
+            onPress={reset}
+            disabled={timerStatus.state === 'idle'}
+            variant="secondary"
+            testID="reset-button"
+          />
+        </View>
       </View>
 
       {/* Info footer */}
@@ -177,6 +273,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 24,
     marginVertical: 16,
+    gap: 12,
+  },
+  secondaryButtonsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'center',
     gap: 12,
   },
   footer: {

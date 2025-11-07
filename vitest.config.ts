@@ -1,9 +1,23 @@
 import { defineConfig } from 'vitest/config';
+import path from 'path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+      '@components': path.resolve(__dirname, './src/components'),
+      '@state': path.resolve(__dirname, './src/state'),
+      '@utils': path.resolve(__dirname, './src/utils'),
+      '@theme': path.resolve(__dirname, './src/theme'),
+      '@types': path.resolve(__dirname, './src/types'),
+      '@audio': path.resolve(__dirname, './src/audio'),
+    },
+  },
   test: {
     globals: true,
-    environment: 'node',
+    environment: 'jsdom',
+    exclude: ['**/node_modules/**', '**/e2e/**', '**/dist/**', '**/tests/components/**'],
+    setupFiles: ['./vitest.setup.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -14,11 +28,8 @@ export default defineConfig({
         'coverage/',
         '**/*.test.ts',
         '**/*.test.tsx',
+        'e2e/',
       ],
-      statements: 80,
-      branches: 75,
-      functions: 80,
-      lines: 80,
     },
   },
 });

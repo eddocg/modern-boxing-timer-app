@@ -6,6 +6,7 @@ interface PrimaryButtonProps {
   onPress: () => void;
   disabled?: boolean;
   variant?: 'primary' | 'secondary';
+  testID?: string;
 }
 
 /**
@@ -22,6 +23,7 @@ export function PrimaryButton({
   onPress,
   disabled = false,
   variant = 'primary',
+  testID,
 }: PrimaryButtonProps) {
   const [isPressed, setIsPressed] = useState(false);
 
@@ -36,6 +38,7 @@ export function PrimaryButton({
 
   return (
     <Pressable
+      testID={testID}
       style={buttonStyle}
       onPress={onPress}
       disabled={disabled}

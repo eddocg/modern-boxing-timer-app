@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { MonotonicTimer, DriftCorrectingScheduler, formatTime, getRoundInfo } from '../utils/time';
 import { TimerState, LightColor, CueType } from '../types';
+import { Platform } from 'react-native';
+import { AppState, AppStateStatus } from 'react-native';
 
 interface TimerStore {
   // State
@@ -11,6 +13,11 @@ interface TimerStore {
   totalSeconds: number; // total seconds in current interval
   isPaused: boolean;
   pausedElapsedSeconds: number; // saved elapsed time when paused
+
+  // Timing tracking (for accurate pause/resume)
+  startEpoch: number | null; // performance.now() when timer started
+  pauseStartTime: number | null; // performance.now() when paused
+  totalPausedTime: number; // cumulative paused time in ms
 
   // Config (can be updated before starting)
   workDuration: number; // seconds
@@ -35,6 +42,7 @@ interface TimerStore {
   resume: () => void;
   reset: () => void;
   stop: () => void;
+  skip: () => void;
 
   // Subscriptions
   onStateChangeSubscribe: (callback: (state: TimerState) => void) => void;
@@ -44,6 +52,94 @@ interface TimerStore {
 export const useTimerStore = create<TimerStore>((set, get) => {
   let currentMonotonic: MonotonicTimer | null = null;
   let currentScheduler: DriftCorrectingScheduler | null = null;
+  let visibilityHandler: (() => void) | null = null;
+  let appStateSubscription: { remove: () => void } | null = null;
+
+  /**
+   * Calculate elapsed time accurately accounting for pauses
+   */
+  const calculateElapsed = (): number => {
+    const state = get();
+    if (!state.startEpoch) return 0;
+
+    const now = performance.now();
+    let pausedTime = state.totalPausedTime;
+
+    // If currently paused, add the current pause duration
+    if (state.isPaused && state.pauseStartTime) {
+      pausedTime += now - state.pauseStartTime;
+    }
+
+    const elapsedMs = now - state.startEpoch - pausedTime;
+    return Math.max(0, elapsedMs / 1000);
+  };
+
+  /**
+   * Handle visibility/app state changes to recalculate elapsed time
+   */
+  const handleVisibilityChange = () => {
+    const state = get();
+    if (state.state === 'idle' || state.state === 'complete' || state.isPaused) {
+      return;
+    }
+
+    // Recalculate elapsed time to account for any time that passed while backgrounded
+    // This ensures accuracy when the app/tab comes back to foreground
+    const elapsed = calculateElapsed();
+    set({ elapsedSeconds: Math.floor(elapsed) });
+  };
+
+  /**
+   * Setup visibility change listeners
+   */
+  const setupVisibilityListeners = () => {
+    // Clean up existing listeners
+    if (visibilityHandler) {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', visibilityHandler);
+      }
+      visibilityHandler = null;
+    }
+
+    if (appStateSubscription) {
+      appStateSubscription.remove();
+      appStateSubscription = null;
+    }
+
+    // Web: use document.visibilitychange
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      visibilityHandler = handleVisibilityChange;
+      document.addEventListener('visibilitychange', visibilityHandler);
+    }
+
+    // React Native: use AppState
+    if (Platform.OS !== 'web') {
+      const handleAppStateChange = (nextAppState: AppStateStatus) => {
+        if (nextAppState === 'active') {
+          handleVisibilityChange();
+        }
+      };
+
+      appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+    }
+  };
+
+  /**
+   * Clean up visibility listeners
+   */
+  const cleanupVisibilityListeners = () => {
+    if (visibilityHandler) {
+      if (Platform.OS === 'web' && typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', visibilityHandler);
+      }
+      visibilityHandler = null;
+    }
+
+    if (appStateSubscription) {
+      appStateSubscription.remove();
+      appStateSubscription = null;
+    }
+  };
 
   return {
     // State
@@ -54,6 +150,9 @@ export const useTimerStore = create<TimerStore>((set, get) => {
     totalSeconds: 180, // 3 minutes work by default
     isPaused: false,
     pausedElapsedSeconds: 0,
+    startEpoch: null,
+    pauseStartTime: null,
+    totalPausedTime: 0,
 
     // Config
     workDuration: 180, // 3 minutes
@@ -85,8 +184,10 @@ export const useTimerStore = create<TimerStore>((set, get) => {
         currentScheduler.stop();
       }
 
-      // Initialize monotonic timer
+      // Initialize monotonic timer (for display updates)
       currentMonotonic = new MonotonicTimer();
+
+      const now = performance.now();
 
       // Reset elapsed time
       set({
@@ -94,6 +195,9 @@ export const useTimerStore = create<TimerStore>((set, get) => {
         pausedElapsedSeconds: 0,
         isPaused: false,
         currentRound: 1,
+        startEpoch: now,
+        pauseStartTime: null,
+        totalPausedTime: 0,
       });
 
       // Determine initial state
@@ -118,15 +222,17 @@ export const useTimerStore = create<TimerStore>((set, get) => {
       currentScheduler = new DriftCorrectingScheduler();
       set({ scheduler: currentScheduler });
 
+      // Setup visibility listeners for accurate timing when backgrounded
+      setupVisibilityListeners();
+
       currentScheduler.start(() => {
         const store = get();
         if (store.isPaused || store.state === 'idle' || store.state === 'complete') {
           return;
         }
 
-        // Calculate elapsed from monotonic timer
-        if (!currentMonotonic) return;
-        const elapsed = currentMonotonic.getElapsedSeconds();
+        // Calculate elapsed from epoch accounting for pauses
+        const elapsed = calculateElapsed();
 
         // Check if we've exceeded the current interval
         if (elapsed >= store.totalSeconds) {
@@ -161,25 +267,29 @@ export const useTimerStore = create<TimerStore>((set, get) => {
         currentScheduler.stop();
       }
 
+      const now = performance.now();
+      const elapsed = calculateElapsed();
+
       set({
         isPaused: true,
-        pausedElapsedSeconds: state.elapsedSeconds,
+        pausedElapsedSeconds: Math.floor(elapsed),
+        pauseStartTime: now,
       });
     },
 
     resume: () => {
       const state = get();
-      if (!state.isPaused) return;
+      if (!state.isPaused || !state.pauseStartTime || !state.startEpoch) return;
 
-      // Reinitialize monotonic timer with offset
-      currentMonotonic = new MonotonicTimer();
-      // Adjust so elapsed starts from pausedElapsedSeconds
-      const adjustedStart = currentMonotonic.getElapsedSeconds();
-      const timeOffset = state.pausedElapsedSeconds - adjustedStart;
+      const now = performance.now();
+      // Add the current pause duration to total paused time
+      const pauseDuration = now - state.pauseStartTime;
+      const newTotalPausedTime = state.totalPausedTime + pauseDuration;
 
       set({
         isPaused: false,
-        monotonic: currentMonotonic,
+        pauseStartTime: null,
+        totalPausedTime: newTotalPausedTime,
       });
 
       // Restart scheduler
@@ -190,14 +300,17 @@ export const useTimerStore = create<TimerStore>((set, get) => {
       currentScheduler = new DriftCorrectingScheduler();
       set({ scheduler: currentScheduler });
 
+      // Setup visibility listeners for accurate timing when backgrounded
+      setupVisibilityListeners();
+
       currentScheduler.start(() => {
         const store = get();
         if (store.isPaused || store.state === 'idle' || store.state === 'complete') {
           return;
         }
 
-        if (!currentMonotonic) return;
-        const elapsed = currentMonotonic.getElapsedSeconds() + timeOffset;
+        // Calculate elapsed from epoch accounting for pauses
+        const elapsed = calculateElapsed();
 
         if (elapsed >= store.totalSeconds) {
           transitionToNextState(store);
@@ -219,12 +332,21 @@ export const useTimerStore = create<TimerStore>((set, get) => {
       });
     },
 
+    skip: () => {
+      const state = get();
+      if (state.state === 'idle' || state.state === 'complete') return;
+
+      // Skip current phase by transitioning to next state immediately
+      transitionToNextState(state);
+    },
+
     reset: () => {
       if (currentScheduler) {
         currentScheduler.stop();
       }
       currentMonotonic = null;
       currentScheduler = null;
+      cleanupVisibilityListeners();
 
       set({
         state: 'idle',
@@ -233,6 +355,9 @@ export const useTimerStore = create<TimerStore>((set, get) => {
         pausedElapsedSeconds: 0,
         isPaused: false,
         totalSeconds: 180,
+        startEpoch: null,
+        pauseStartTime: null,
+        totalPausedTime: 0,
         monotonic: null,
         scheduler: null,
       });
@@ -244,6 +369,7 @@ export const useTimerStore = create<TimerStore>((set, get) => {
       }
       currentMonotonic = null;
       currentScheduler = null;
+      cleanupVisibilityListeners();
 
       set({
         state: 'complete',
@@ -306,11 +432,16 @@ function transitionToNextState(store: ReturnType<typeof useTimerStore.getState>)
       nextTotalSeconds = 0;
   }
 
+  // Reset timing for the new phase
+  const now = performance.now();
   useTimerStore.setState({
     state: nextState,
     totalSeconds: nextTotalSeconds,
     elapsedSeconds: 0,
     currentRound: nextRound,
+    startEpoch: now,
+    pauseStartTime: null,
+    totalPausedTime: 0,
   });
 
   onStateChange?.(nextState);
@@ -357,6 +488,7 @@ export const useTimerActions = () =>
     reset: state.reset,
     stop: state.stop,
     setConfig: state.setConfig,
+    skip: state.skip,
     onStateChangeSubscribe: state.onStateChangeSubscribe,
     onAudioCueSubscribe: state.onAudioCueSubscribe,
   }));
@@ -364,7 +496,7 @@ export const useTimerActions = () =>
 /**
  * Determine which light should be on based on current state
  */
-function getLightColor(state: TimerState, totalSeconds: number, elapsed: number, yellowThreshold: number): LightColor {
+export function getLightColor(state: TimerState, totalSeconds: number, elapsed: number, yellowThreshold: number): LightColor {
   switch (state) {
     case 'idle':
     case 'complete':

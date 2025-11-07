@@ -3,6 +3,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import * as SplashScreen from 'expo-splash-screen';
 import { initializeStorage } from '@utils/storage';
+import { useSettingsStore } from '@state/useSettings';
+import { getAudioManager } from '@audio/index';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -10,9 +12,19 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 export default function RootLayout() {
+  const loadFromStorage = useSettingsStore((state) => state.loadFromStorage);
+
   useEffect(() => {
-    // Initialize storage (with corruption recovery) and hide splash
+    // Initialize storage (with corruption recovery) and load settings
     initializeStorage()
+      .then(() => {
+        return loadFromStorage();
+      })
+      .then(() => {
+        // Initialize audio manager
+        const audioManager = getAudioManager();
+        return audioManager.initialize();
+      })
       .then(() => {
         return SplashScreen.hideAsync();
       })
@@ -23,7 +35,7 @@ export default function RootLayout() {
           // Splashscreen failed to hide
         });
       });
-  }, []);
+  }, [loadFromStorage]);
 
   return (
     <>
