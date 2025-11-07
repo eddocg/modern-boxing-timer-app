@@ -32,7 +32,7 @@ export default function TimerScreen() {
   const rounds = useSettingsStore((state) => state.rounds);
   const workDuration = useSettingsStore((state) => state.workDuration);
   const restDuration = useSettingsStore((state) => state.restDuration);
-  const yellowThreshold = useSettingsStore((state) => state.yellowThreshold);
+  const yellowDuration = useSettingsStore((state) => state.yellowDuration);
   const warmup = useSettingsStore((state) => state.warmup);
   const countdownEnabled = useSettingsStore((state) => state.countdownEnabled);
   const volume = useSettingsStore((state) => state.volume);
@@ -62,12 +62,12 @@ export default function TimerScreen() {
     setConfig({
       workDuration,
       restDuration,
-      yellowThreshold,
+      yellowDuration,
       warmupDuration: warmup, // Map warmup -> warmupDuration
       totalRounds: rounds,
       countdownEnabled,
     });
-  }, [workDuration, restDuration, yellowThreshold, warmup, rounds, countdownEnabled, setConfig]);
+  }, [workDuration, restDuration, yellowDuration, warmup, rounds, countdownEnabled, setConfig]);
 
   // Handle Play/Pause/Resume button
   const handlePlayPause = () => {
@@ -173,6 +173,7 @@ export default function TimerScreen() {
         elapsed={timerStatus.elapsedSeconds}
         total={timerStatus.totalSeconds}
         displayTime={timerStatus.displayTime}
+        ringColor={timerStatus.lightColor}
       />
 
       {/* Round info */}

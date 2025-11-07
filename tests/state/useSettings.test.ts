@@ -15,7 +15,7 @@ describe('Settings Store', () => {
       rounds: null,
       workDuration: 180,
       restDuration: 60,
-      yellowThreshold: 10,
+      yellowDuration: 10,
       warmup: 0,
       soundPack: 'boxing-bell',
       volume: 0.8,
@@ -29,12 +29,12 @@ describe('Settings Store', () => {
     it('loads settings from storage', async () => {
       // Mock stored settings
       vi.mocked(getFromStorage).mockResolvedValue({
-        version: 1,
+        version: 2,
         settings: {
           rounds: 5,
           workDuration: 120,
           restDuration: 45,
-          yellowThreshold: 15,
+          yellowDuration: 15,
           warmup: 30,
           soundPack: 'mma-horn',
           volume: 0.9,
@@ -50,7 +50,7 @@ describe('Settings Store', () => {
       expect(state.rounds).toBe(5);
       expect(state.workDuration).toBe(120);
       expect(state.restDuration).toBe(45);
-      expect(state.yellowThreshold).toBe(15);
+      expect(state.yellowDuration).toBe(15);
       expect(state.warmup).toBe(30);
       expect(state.soundPack).toBe('mma-horn');
       expect(state.volume).toBe(0.9);
@@ -82,7 +82,7 @@ describe('Settings Store', () => {
       const callArgs = vi.mocked(saveToStorage).mock.calls[0];
       expect(callArgs[0]).toBe('boxing-timer-settings');
       expect(callArgs[1]).toMatchObject({
-        version: 1,
+        version: 2,
         settings: expect.objectContaining({
           workDuration: 120,
         }),

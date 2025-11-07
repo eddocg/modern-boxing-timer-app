@@ -20,7 +20,7 @@ export default function SettingsScreen() {
   const {
     workDuration,
     restDuration,
-    yellowThreshold,
+    yellowDuration,
     vibrationEnabled,
     countdownEnabled,
     updateSetting,
@@ -94,17 +94,17 @@ export default function SettingsScreen() {
         </View>
 
         <View style={styles.setting}>
-          <Text style={styles.label}>Yellow Warning (Final {yellowThreshold}s)</Text>
+          <Text style={styles.label}>Yellow Phase Duration: {formatSeconds(yellowDuration)}</Text>
           <View style={styles.inputRow}>
             <Pressable
               style={styles.adjustButton}
-              onPress={() => updateSetting('yellowThreshold', Math.max(1, yellowThreshold - 5))}
+              onPress={() => updateSetting('yellowDuration', Math.max(1, yellowDuration - 5))}
             >
               <Text style={styles.adjustButtonText}>-5s</Text>
             </Pressable>
             <Pressable
               style={styles.adjustButton}
-              onPress={() => updateSetting('yellowThreshold', yellowThreshold + 5)}
+              onPress={() => updateSetting('yellowDuration', yellowDuration + 5)}
             >
               <Text style={styles.adjustButtonText}>+5s</Text>
             </Pressable>

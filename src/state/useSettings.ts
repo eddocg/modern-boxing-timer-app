@@ -5,7 +5,7 @@ interface Settings {
   rounds: number | null; // null means infinite
   workDuration: number; // in seconds
   restDuration: number; // in seconds
-  yellowThreshold: number; // in seconds (how many seconds left to trigger yellow)
+  yellowDuration: number; // in seconds - Yellow phase duration
   warmup: number; // in seconds
   soundPack: 'boxing-bell' | 'mma-horn' | 'beep';
   volume: number; // 0-1
@@ -17,7 +17,7 @@ const DEFAULT_SETTINGS: Settings = {
   rounds: null, // infinite
   workDuration: 180, // 3 minutes
   restDuration: 60, // 1 minute
-  yellowThreshold: 10, // 10 seconds
+  yellowDuration: 10, // 10 seconds - Yellow phase duration
   warmup: 0,
   soundPack: 'boxing-bell',
   volume: 0.8,
@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 // Storage schema version for migration
 const STORAGE_KEY = 'boxing-timer-settings';
-const STORAGE_VERSION = 1;
+const STORAGE_VERSION = 2; // Bumped for yellowThreshold → yellowDuration migration
 
 interface StoredSettings {
   version: number;
@@ -68,8 +68,20 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
       // Migration: handle schema version changes
       if (stored.version !== STORAGE_VERSION) {
-        // For now, just reset to defaults if version mismatch
-        // In future, add migration logic here
+        // Migrate yellowThreshold → yellowDuration
+        if (stored.version === 1) {
+          const migratedSettings: Settings = {
+            ...DEFAULT_SETTINGS,
+            ...stored.settings,
+            // Migrate yellowThreshold to yellowDuration
+            yellowDuration: (stored.settings as any).yellowThreshold || DEFAULT_SETTINGS.yellowDuration,
+          };
+          // Remove old field if present
+          delete (migratedSettings as any).yellowThreshold;
+          set(migratedSettings);
+          return;
+        }
+        // For other version mismatches, reset to defaults
         console.warn(`Settings version mismatch (${stored.version} vs ${STORAGE_VERSION}), using defaults`);
         return;
       }
@@ -94,7 +106,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         rounds: state.rounds,
         workDuration: state.workDuration,
         restDuration: state.restDuration,
-        yellowThreshold: state.yellowThreshold,
+        yellowDuration: state.yellowDuration,
         warmup: state.warmup,
         soundPack: state.soundPack,
         volume: state.volume,
@@ -118,7 +130,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 export const useRounds = () => useSettingsStore((state) => state.rounds);
 export const useWorkDuration = () => useSettingsStore((state) => state.workDuration);
 export const useRestDuration = () => useSettingsStore((state) => state.restDuration);
-export const useYellowThreshold = () => useSettingsStore((state) => state.yellowThreshold);
+export const useYellowDuration = () => useSettingsStore((state) => state.yellowDuration);
 export const useWarmup = () => useSettingsStore((state) => state.warmup);
 export const useSoundPack = () => useSettingsStore((state) => state.soundPack);
 export const useVolume = () => useSettingsStore((state) => state.volume);

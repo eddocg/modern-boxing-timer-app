@@ -20,9 +20,9 @@ interface TimerStore {
   totalPausedTime: number; // cumulative paused time in ms
 
   // Config (can be updated before starting)
-  workDuration: number; // seconds
-  restDuration: number; // seconds
-  yellowThreshold: number; // seconds before work ends
+  workDuration: number; // seconds - Green phase duration
+  restDuration: number; // seconds - Red phase duration
+  yellowDuration: number; // seconds - Yellow phase duration
   warmupDuration: number; // seconds
   countdownEnabled: boolean;
   countdownDuration: number; // 3 seconds for countdown
@@ -34,7 +34,7 @@ interface TimerStore {
   onAudioCue: ((cue: CueType) => void) | null;
 
   // Configuration actions
-  setConfig: (config: Partial<Pick<TimerStore, 'workDuration' | 'restDuration' | 'yellowThreshold' | 'warmupDuration' | 'totalRounds' | 'countdownEnabled'>>) => void;
+  setConfig: (config: Partial<Pick<TimerStore, 'workDuration' | 'restDuration' | 'yellowDuration' | 'warmupDuration' | 'totalRounds' | 'countdownEnabled'>>) => void;
 
   // Timer actions
   start: () => void;
@@ -155,9 +155,9 @@ export const useTimerStore = create<TimerStore>((set, get) => {
     totalPausedTime: 0,
 
     // Config
-    workDuration: 180, // 3 minutes
-    restDuration: 60, // 1 minute
-    yellowThreshold: 10, // 10 seconds
+    workDuration: 180, // 3 minutes - Green phase
+    restDuration: 60, // 1 minute - Red phase
+    yellowDuration: 10, // 10 seconds - Yellow phase
     warmupDuration: 0,
     countdownEnabled: false,
     countdownDuration: 3,
@@ -239,22 +239,8 @@ export const useTimerStore = create<TimerStore>((set, get) => {
           // Transition to next state
           transitionToNextState(store);
         } else {
-          // Update elapsed and check for yellow phase
+          // Update elapsed time
           set({ elapsedSeconds: Math.floor(elapsed) });
-
-          // If in work state and approaching yellow threshold, switch to yellow
-          if (store.state === 'work') {
-            const secondsLeft = store.totalSeconds - Math.floor(elapsed);
-            if (secondsLeft <= store.yellowThreshold && store.state === 'work') {
-              set({ state: 'yellow' });
-              store.onStateChange?.('yellow');
-            }
-          }
-
-          // Emit beep during yellow phase
-          if (store.state === 'yellow') {
-            store.onAudioCue?.('beep');
-          }
         }
       });
     },
@@ -316,18 +302,6 @@ export const useTimerStore = create<TimerStore>((set, get) => {
           transitionToNextState(store);
         } else {
           set({ elapsedSeconds: Math.floor(elapsed) });
-
-          if (store.state === 'work') {
-            const secondsLeft = store.totalSeconds - Math.floor(elapsed);
-            if (secondsLeft <= store.yellowThreshold && store.state === 'work') {
-              set({ state: 'yellow' });
-              store.onStateChange?.('yellow');
-            }
-          }
-
-          if (store.state === 'yellow') {
-            store.onAudioCue?.('beep');
-          }
         }
       });
     },
@@ -387,7 +361,7 @@ export const useTimerStore = create<TimerStore>((set, get) => {
  * Helper function to handle state transitions
  */
 function transitionToNextState(store: ReturnType<typeof useTimerStore.getState>) {
-  const { state, currentRound, totalRounds, workDuration, restDuration, onStateChange, onAudioCue } = store;
+  const { state, currentRound, totalRounds, workDuration, restDuration, yellowDuration, onStateChange, onAudioCue } = store;
 
   let nextState: TimerState;
   let nextTotalSeconds: number;
@@ -407,6 +381,11 @@ function transitionToNextState(store: ReturnType<typeof useTimerStore.getState>)
       break;
 
     case 'work':
+      nextState = 'yellow';
+      nextTotalSeconds = yellowDuration;
+      onAudioCue?.('transition');
+      break;
+
     case 'yellow':
       nextState = 'rest';
       nextTotalSeconds = restDuration;
@@ -460,7 +439,7 @@ export const useTimerStatus = () =>
     totalSeconds: state.totalSeconds,
     displayTime: formatTime(state.totalSeconds - state.elapsedSeconds),
     roundInfo: getRoundInfo(state.currentRound, state.totalRounds),
-    lightColor: getLightColor(state.state, state.totalSeconds, state.elapsedSeconds, state.yellowThreshold),
+    lightColor: getLightColor(state.state),
     isRunning: state.state !== 'idle' && state.state !== 'complete' && !state.isPaused,
   }));
 
@@ -473,9 +452,7 @@ export const useDisplayTime = () =>
 export const useRoundInfo = () =>
   useTimerStore((state) => getRoundInfo(state.currentRound, state.totalRounds));
 export const useLightColor = () =>
-  useTimerStore((state) =>
-    getLightColor(state.state, state.totalSeconds, state.elapsedSeconds, state.yellowThreshold)
-  );
+  useTimerStore((state) => getLightColor(state.state));
 export const useIsRunning = () =>
   useTimerStore((state) => state.state !== 'idle' && state.state !== 'complete' && !state.isPaused);
 export const useIsPaused = () => useTimerStore((state) => state.isPaused);
@@ -495,25 +472,27 @@ export const useTimerActions = () =>
 
 /**
  * Determine which light should be on based on current state
+ * Lights are purely state-driven - each phase has exactly one light
+ * Phase order: work (green) → yellow → rest (red) → work (repeat)
  */
-export function getLightColor(state: TimerState, totalSeconds: number, elapsed: number, yellowThreshold: number): LightColor {
+export function getLightColor(state: TimerState): LightColor {
   switch (state) {
     case 'idle':
     case 'complete':
     case 'countdown':
       return 'off';
+    
     case 'warmup':
+    case 'work':
       return 'green';
+    
     case 'yellow':
       return 'yellow';
-    case 'work': {
-      const remaining = totalSeconds - elapsed;
-      if (remaining <= yellowThreshold) {
-        return 'yellow';
-      }
-      return 'green';
-    }
+    
     case 'rest':
       return 'red';
+    
+    default:
+      return 'off';
   }
 }

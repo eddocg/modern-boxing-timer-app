@@ -15,7 +15,7 @@ describe('Timer State Machine', () => {
       pausedElapsedSeconds: 0,
       workDuration: 180,
       restDuration: 60,
-      yellowThreshold: 10,
+      yellowDuration: 10,
       warmupDuration: 0,
       countdownEnabled: false,
       countdownDuration: 3,
@@ -38,7 +38,7 @@ describe('Timer State Machine', () => {
       const state = useTimerStore.getState();
       expect(state.workDuration).toBe(180);
       expect(state.restDuration).toBe(60);
-      expect(state.yellowThreshold).toBe(10);
+      expect(state.yellowDuration).toBe(10);
       expect(state.countdownEnabled).toBe(false);
     });
   });
@@ -58,14 +58,14 @@ describe('Timer State Machine', () => {
         workDuration: 120,
         restDuration: 45,
         totalRounds: 5,
-        yellowThreshold: 15,
+        yellowDuration: 15,
       });
 
       const state = useTimerStore.getState();
       expect(state.workDuration).toBe(120);
       expect(state.restDuration).toBe(45);
       expect(state.totalRounds).toBe(5);
-      expect(state.yellowThreshold).toBe(15);
+      expect(state.yellowDuration).toBe(15);
     });
 
     it('sets total rounds for fixed duration', () => {
@@ -243,7 +243,7 @@ describe('Timer State Machine', () => {
   describe('Skip Functionality', () => {
     it('skips current phase and transitions to next', () => {
       const store = useTimerStore.getState();
-      store.setConfig({ workDuration: 60, restDuration: 30 });
+      store.setConfig({ workDuration: 60, restDuration: 30, yellowDuration: 10 });
       store.start();
 
       const initialState = useTimerStore.getState();
@@ -252,7 +252,7 @@ describe('Timer State Machine', () => {
       store.skip();
 
       const afterSkip = useTimerStore.getState();
-      expect(afterSkip.state).toBe('rest');
+      expect(afterSkip.state).toBe('yellow'); // work → yellow
       expect(afterSkip.elapsedSeconds).toBe(0);
     });
 
@@ -356,8 +356,6 @@ describe('Timer State Machine', () => {
 
   describe('Light Color Logic', () => {
     it('shows green during work phase', () => {
-      const store = useTimerStore.getState();
-      store.setConfig({ workDuration: 60, yellowThreshold: 10 });
       useTimerStore.setState({
         state: 'work',
         totalSeconds: 60,
@@ -365,21 +363,19 @@ describe('Timer State Machine', () => {
       });
 
       const state = useTimerStore.getState();
-      const lightColor = getLightColor(state.state, state.totalSeconds, state.elapsedSeconds, state.yellowThreshold);
+      const lightColor = getLightColor(state.state);
       expect(lightColor).toBe('green');
     });
 
-    it('shows yellow in final seconds of work', () => {
-      const store = useTimerStore.getState();
-      store.setConfig({ workDuration: 60, yellowThreshold: 10 });
+    it('shows yellow during yellow phase', () => {
       useTimerStore.setState({
-        state: 'work',
-        totalSeconds: 60,
-        elapsedSeconds: 55, // 5 seconds left
+        state: 'yellow',
+        totalSeconds: 10,
+        elapsedSeconds: 5,
       });
 
       const state = useTimerStore.getState();
-      const lightColor = getLightColor(state.state, state.totalSeconds, state.elapsedSeconds, state.yellowThreshold);
+      const lightColor = getLightColor(state.state);
       expect(lightColor).toBe('yellow');
     });
 
@@ -391,7 +387,7 @@ describe('Timer State Machine', () => {
       });
 
       const state = useTimerStore.getState();
-      const lightColor = getLightColor(state.state, state.totalSeconds, state.elapsedSeconds, state.yellowThreshold);
+      const lightColor = getLightColor(state.state);
       expect(lightColor).toBe('red');
     });
 
@@ -399,7 +395,7 @@ describe('Timer State Machine', () => {
       useTimerStore.setState({ state: 'idle' });
 
       const state = useTimerStore.getState();
-      const lightColor = getLightColor(state.state, state.totalSeconds, state.elapsedSeconds, state.yellowThreshold);
+      const lightColor = getLightColor(state.state);
       expect(lightColor).toBe('off');
     });
 
@@ -407,7 +403,7 @@ describe('Timer State Machine', () => {
       useTimerStore.setState({ state: 'complete' });
 
       const state = useTimerStore.getState();
-      const lightColor = getLightColor(state.state, state.totalSeconds, state.elapsedSeconds, state.yellowThreshold);
+      const lightColor = getLightColor(state.state);
       expect(lightColor).toBe('off');
     });
 
@@ -419,7 +415,7 @@ describe('Timer State Machine', () => {
       });
 
       const state = useTimerStore.getState();
-      const lightColor = getLightColor(state.state, state.totalSeconds, state.elapsedSeconds, state.yellowThreshold);
+      const lightColor = getLightColor(state.state);
       expect(lightColor).toBe('green');
     });
   });

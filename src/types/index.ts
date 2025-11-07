@@ -5,9 +5,9 @@ export type CueType = 'start' | 'beep' | 'transition' | 'horn';
 
 export interface TimerConfig {
   rounds: number | null; // null means infinite
-  workDuration: number; // seconds
-  restDuration: number; // seconds
-  yellowThreshold: number; // seconds before work ends
+  workDuration: number; // seconds - Green phase duration
+  restDuration: number; // seconds - Red phase duration
+  yellowDuration: number; // seconds - Yellow phase duration (was yellowThreshold)
   warmup: number; // seconds
   soundPack: SoundPack;
   volume: number; // 0-1

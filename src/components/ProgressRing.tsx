@@ -1,10 +1,12 @@
 import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import type { LightColor } from '../types';
 
 interface ProgressRingProps {
   elapsed: number;
   total: number;
   displayTime: string;
+  ringColor: LightColor; // Color matches active phase light
 }
 
 /**
@@ -13,10 +15,10 @@ interface ProgressRingProps {
  * Features:
  * - SVG-based progress ring that starts full at 12 o'clock and decreases clockwise
  * - Large MM:SS display in center
+ * - Ring color syncs with active phase light color
  * - Single source of truth: remaining time drives both visual and numeric display
- * - Proper stroke-dasharray/stroke-dashoffset for accurate arc rendering
  */
-export function ProgressRing({ elapsed, total, displayTime }: ProgressRingProps) {
+export function ProgressRing({ elapsed, total, displayTime, ringColor }: ProgressRingProps) {
   // Dimensions
   const size = 300;
   const radius = 130;
@@ -31,10 +33,16 @@ export function ProgressRing({ elapsed, total, displayTime }: ProgressRingProps)
   const remaining = total > 0 ? Math.max(0, Math.min(1, (total - elapsed) / total)) : 0;
   
   // For clockwise decrease: negative dashoffset shrinks clockwise
-  // remaining=1 → dashoffset=0 (full circle visible)
-  // remaining=0 → dashoffset=-circumference (empty, pattern shifted backward)
-  // Negative offset shifts the dash pattern backward along the path, hiding clockwise portion
   const dashoffset = -circumference * (1 - remaining);
+
+  // Map light color to ring stroke color
+  const strokeColorMap: Record<LightColor, string> = {
+    green: '#00D26A',
+    yellow: '#FFD84D',
+    red: '#FF4D4F',
+    off: '#333333',
+  };
+  const strokeColor = strokeColorMap[ringColor];
 
   return (
     <View style={styles.container}>
@@ -50,12 +58,12 @@ export function ProgressRing({ elapsed, total, displayTime }: ProgressRingProps)
             fill="none"
           />
           
-          {/* Progress arc - starts at 12 o'clock (rotated -90deg), decreases clockwise */}
+          {/* Progress arc - color matches active phase light */}
           <Circle
             cx={center}
             cy={center}
             r={radius}
-            stroke="#00D26A"
+            stroke={strokeColor}
             strokeWidth={strokeWidth}
             fill="none"
             strokeDasharray={circumference}
