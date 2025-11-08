@@ -1,6 +1,6 @@
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import type { LightColor } from '../types';
 
 interface ProgressRingProps {
@@ -17,7 +17,7 @@ interface ProgressRingProps {
  * - SVG-based progress ring that starts full at 12 o'clock and decreases clockwise
  * - Large MM:SS display in center with fixed width to prevent jitter
  * - Ring color syncs with active phase light color
- * - Smooth 60 FPS animation interpolated from 1 Hz logic updates
+ * - Optimized RAF: throttles React state updates to ~10 FPS while maintaining smooth interpolation
  * - GPU-friendly: only animates strokeDashoffset (transform-like property)
  * - Pauses animation when tab is hidden (web only)
  */
@@ -31,12 +31,18 @@ export function ProgressRing({ elapsed, total, displayTime, ringColor }: Progres
   // Calculate circumference
   const circumference = 2 * Math.PI * radius;
 
-  // Smooth animation: interpolate between discrete 1 Hz updates
-  // Use local state for smooth 60 FPS visual updates
-  const [animatedElapsed, setAnimatedElapsed] = useState(elapsed);
+  // Optimized animation: use ref for smooth interpolation, throttle React state
+  // Ref stores the smooth interpolated value (updated every RAF frame)
+  const animatedElapsedRef = useRef<number>(elapsed);
   const lastUpdateRef = useRef<number>(performance.now());
   const animationFrameRef = useRef<number | null>(null);
   const isVisibleRef = useRef<boolean>(true);
+  
+  // Throttled state update: only update React state every ~50ms to avoid re-render churn
+  // This reduces re-render frequency from 60 FPS to ~20 FPS while maintaining smooth visuals
+  const [throttledElapsed, setThrottledElapsed] = useState(elapsed);
+  const lastStateUpdateRef = useRef<number>(0);
+  const STATE_UPDATE_INTERVAL = 50; // ms - throttle React state updates to ~20 FPS
 
   // Handle visibility changes (web only)
   useEffect(() => {
@@ -61,17 +67,23 @@ export function ProgressRing({ elapsed, total, displayTime, ringColor }: Progres
             const deltaTime = (now - lastUpdateRef.current) / 1000;
             lastUpdateRef.current = now;
 
-            setAnimatedElapsed((prev) => {
-              const target = elapsed;
-              const diff = target - prev;
-              
-              if (Math.abs(diff) < 0.01) {
-                return target;
-              }
-              
+            // Update ref value (smooth interpolation, no React re-render)
+            const target = elapsed;
+            const current = animatedElapsedRef.current;
+            const diff = target - current;
+            
+            if (Math.abs(diff) < 0.01) {
+              animatedElapsedRef.current = target;
+            } else {
               const factor = Math.min(1, deltaTime * 10);
-              return prev + diff * factor;
-            });
+              animatedElapsedRef.current = current + diff * factor;
+            }
+
+            // Throttled state update (triggers re-render only every ~50ms)
+            if (now - lastStateUpdateRef.current >= STATE_UPDATE_INTERVAL) {
+              setThrottledElapsed(animatedElapsedRef.current);
+              lastStateUpdateRef.current = now;
+            }
 
             animationFrameRef.current = requestAnimationFrame(animate);
           };
@@ -84,7 +96,8 @@ export function ProgressRing({ elapsed, total, displayTime, ringColor }: Progres
           animationFrameRef.current = null;
         }
         // Snap to target when hidden to avoid drift
-        setAnimatedElapsed(elapsed);
+        animatedElapsedRef.current = elapsed;
+        setThrottledElapsed(elapsed);
       }
     };
 
@@ -97,8 +110,12 @@ export function ProgressRing({ elapsed, total, displayTime, ringColor }: Progres
   // Main animation loop
   useEffect(() => {
     // Reset animation when elapsed prop changes (new phase or manual update)
-    setAnimatedElapsed(elapsed);
+    animatedElapsedRef.current = elapsed;
+    if (throttledElapsed !== elapsed) {
+      setThrottledElapsed(elapsed);
+    }
     lastUpdateRef.current = performance.now();
+    lastStateUpdateRef.current = performance.now();
 
     // Start smooth animation loop (~60 FPS)
     const animate = () => {
@@ -112,21 +129,24 @@ export function ProgressRing({ elapsed, total, displayTime, ringColor }: Progres
       const deltaTime = (now - lastUpdateRef.current) / 1000; // seconds
       lastUpdateRef.current = now;
 
-      setAnimatedElapsed((prev) => {
-        // Smoothly interpolate towards target elapsed
-        const target = elapsed;
-        const diff = target - prev;
-        
-        // If close enough, snap to target
-        if (Math.abs(diff) < 0.01) {
-          return target;
-        }
-        
-        // Otherwise, interpolate smoothly (ease towards target)
-        // Use a small factor to avoid overshooting
-        const factor = Math.min(1, deltaTime * 10); // Adjust speed as needed
-        return prev + diff * factor;
-      });
+      // Update ref value (smooth interpolation, no React re-render)
+      const target = elapsed;
+      const current = animatedElapsedRef.current;
+      const diff = target - current;
+      
+      if (Math.abs(diff) < 0.01) {
+        animatedElapsedRef.current = target;
+      } else {
+        const factor = Math.min(1, deltaTime * 10);
+        animatedElapsedRef.current = current + diff * factor;
+      }
+
+      // Throttled state update: only update React state every ~50ms
+      // This reduces re-render frequency from 60 FPS to ~20 FPS while maintaining smooth visuals
+      if (now - lastStateUpdateRef.current >= STATE_UPDATE_INTERVAL) {
+        setThrottledElapsed(animatedElapsedRef.current);
+        lastStateUpdateRef.current = now;
+      }
 
       animationFrameRef.current = requestAnimationFrame(animate);
     };
@@ -138,15 +158,25 @@ export function ProgressRing({ elapsed, total, displayTime, ringColor }: Progres
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [elapsed]);
+  }, [elapsed, throttledElapsed]);
 
+  // Use throttled state for rendering (updated every ~50ms)
+  // The ref provides smooth interpolation between state updates
+  // Note: For true 60 FPS visuals, we'd need react-native-reanimated, but this approach
+  // significantly reduces React re-render overhead while maintaining acceptable smoothness
+  const visualElapsed = throttledElapsed;
+  
   // Single source of truth: remaining from full→empty in [1..0]
   // Clamp strictly to prevent negative or >1 values
-  const remaining = total > 0 ? Math.max(0, Math.min(1, (total - animatedElapsed) / total)) : 0;
+  const remaining = useMemo(() => {
+    return total > 0 ? Math.max(0, Math.min(1, (total - visualElapsed) / total)) : 0;
+  }, [total, visualElapsed]);
   
   // For clockwise decrease: negative dashoffset shrinks clockwise
   // strokeDashoffset is transform-like (GPU-friendly, no layout)
-  const dashoffset = -circumference * (1 - remaining);
+  const dashoffset = useMemo(() => {
+    return -circumference * (1 - remaining);
+  }, [circumference, remaining]);
 
   // Map light color to ring stroke color
   const strokeColorMap: Record<LightColor, string> = {

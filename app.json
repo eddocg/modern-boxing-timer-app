@@ -15,7 +15,6 @@
       "**/*"
     ],
     "ios": {
-      "supportsTabletMode": true,
       "bundleIdentifier": "com.boxingtimer.app"
     },
     "android": {
@@ -37,13 +36,13 @@
           "origin": false
         }
       ],
-      "expo-font"
+      "expo-font",
+      "expo-web-browser"
     ],
     "experiments": {
       "tsconfigPaths": true,
       "typedRoutes": true
     },
-    "scheme": "boxing-timer",
-    "preferredLanguages": "en"
+    "scheme": "boxing-timer"
   }
 }
